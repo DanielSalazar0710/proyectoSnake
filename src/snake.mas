@@ -1,0 +1,295 @@
+/ =====================================================================
+/  SNAKE EN MARIE  -  BOSQUEJO INICIAL (version 0.1)
+/  Organizacion de Computadores
+/ ---------------------------------------------------------------------
+/  Que hace esta version:
+/    - Pinta el tablero de 16x16 con el color de fondo.
+/    - Pinta la cabeza de la serpiente y un punto (comida).
+/    - Muestra el puntaje inicial (0) con OUTPUT.
+/    - En cada turno lee una direccion con INPUT (1,2,3,4) y mueve
+/      la cabeza una celda. Si la entrada no es valida, vuelve a pedir.
+/    - Si la cabeza intenta salir del tablero, la partida termina.
+/    - Si la cabeza llega al punto, el puntaje sube en 1.
+/
+/  Todavia NO hace (ver AVANCE.md):
+/    - Cuerpo de la serpiente (por ahora solo existe la cabeza).
+/    - Crecimiento, nuevo punto despues de comer, choque con el cuerpo
+/      y rechazo del giro de 180 grados.
+/
+/  Como usarlo en MARIE.js:
+/    1. Abrir el display (Display) y poner el Input en modo DECIMAL.
+/    2. Assemble y Run.
+/    3. Escribir 1, 2, 3 o 4 en cada turno.
+/
+/  Convencion de direcciones:  1 = arriba   2 = abajo
+/                              3 = izquierda 4 = derecha
+/
+/  El display de MARIE.js lee la memoria 0xF00 - 0xFFF:
+/  la celda (fila, columna) esta en la direccion  F00 + 16*fila + columna
+/  fila 0 es la de arriba y columna 0 es la de la izquierda.
+/ =====================================================================
+
+
+/ =====================================================================
+/  1. INICIO DEL PROGRAMA
+/  Aqui se prepara el tablero antes del primer turno.
+/ =====================================================================
+Inicio,     JnS     LimpiarTablero      / pinta las 256 celdas con el color de fondo
+            JnS     DibujarComida       / pinta el punto (comida)
+            JnS     DibujarCabeza       / pinta la cabeza en su posicion inicial
+            Load    Puntaje             / muestra el puntaje inicial (0)
+            Output
+
+
+/ =====================================================================
+/  2. TURNO: LEER Y VALIDAR LA DIRECCION
+/  Aqui se pide la direccion al jugador.
+/  Solo se aceptan 1, 2, 3 o 4. Cualquier otro numero se ignora
+/  y se vuelve a pedir, SIN mover la serpiente.
+/ =====================================================================
+Turno,      Input                       / AC <- numero que escribe el jugador
+            Store   Entrada
+
+            Subt    Uno                 / es 1?  (Entrada - 1 == 0)
+            Skipcond 400
+            Jump    NoEsUno
+            Jump    MoverArriba
+
+NoEsUno,    Load    Entrada             / es 2?
+            Subt    Dos
+            Skipcond 400
+            Jump    NoEsDos
+            Jump    MoverAbajo
+
+NoEsDos,    Load    Entrada             / es 3?
+            Subt    Tres
+            Skipcond 400
+            Jump    NoEsTres
+            Jump    MoverIzquierda
+
+NoEsTres,   Load    Entrada             / es 4?
+            Subt    Cuatro
+            Skipcond 400
+            Jump    Turno               / no es ninguna: entrada invalida, pedir otra
+            Jump    MoverDerecha
+
+
+/ =====================================================================
+/  3. MOVIMIENTOS
+/  Cada bloque revisa primero la pared. Si hay pared, se termina
+/  la partida. Si no, borra la cabeza, cambia la fila o la columna
+/  y vuelve a pintar la cabeza en la nueva celda.
+/ =====================================================================
+
+/ ---------- 3.1 ESTO MUEVE HACIA ARRIBA (fila - 1) ----------
+MoverArriba,    Load    Fila            / si Fila == 0 ya esta en el borde de arriba
+                Skipcond 400
+                Jump    SiArriba
+                Jump    ChocoPared
+SiArriba,       Load    Uno             / la direccion actual pasa a ser 1
+                Store   Direccion
+                JnS     BorrarCabeza
+                Load    Fila            / Fila = Fila - 1
+                Subt    Uno
+                Store   Fila
+                Jump    DespuesDeMover
+
+/ ---------- 3.2 ESTO MUEVE HACIA ABAJO (fila + 1) ----------
+MoverAbajo,     Load    Fila            / si Fila == 15 ya esta en el borde de abajo
+                Subt    Quince
+                Skipcond 400
+                Jump    SiAbajo
+                Jump    ChocoPared
+SiAbajo,        Load    Dos             / la direccion actual pasa a ser 2
+                Store   Direccion
+                JnS     BorrarCabeza
+                Load    Fila            / Fila = Fila + 1
+                Add     Uno
+                Store   Fila
+                Jump    DespuesDeMover
+
+/ ---------- 3.3 ESTO MUEVE HACIA LA IZQUIERDA (columna - 1) ----------
+MoverIzquierda, Load    Col             / si Col == 0 ya esta en el borde izquierdo
+                Skipcond 400
+                Jump    SiIzquierda
+                Jump    ChocoPared
+SiIzquierda,    Load    Tres            / la direccion actual pasa a ser 3
+                Store   Direccion
+                JnS     BorrarCabeza
+                Load    Col             / Col = Col - 1
+                Subt    Uno
+                Store   Col
+                Jump    DespuesDeMover
+
+/ ---------- 3.4 ESTO MUEVE HACIA LA DERECHA (columna + 1) ----------
+MoverDerecha,   Load    Col             / si Col == 15 ya esta en el borde derecho
+                Subt    Quince
+                Skipcond 400
+                Jump    SiDerecha
+                Jump    ChocoPared
+SiDerecha,      Load    Cuatro          / la direccion actual pasa a ser 4
+                Store   Direccion
+                JnS     BorrarCabeza
+                Load    Col             / Col = Col + 1
+                Add     Uno
+                Store   Col
+                Jump    DespuesDeMover
+
+
+/ =====================================================================
+/  4. DESPUES DE MOVER
+/  Aqui se revisa si la cabeza cayo sobre el punto y luego se pinta
+/  la cabeza en su nueva celda.
+/ =====================================================================
+DespuesDeMover, Load    HayComida       / si ya no hay punto en el tablero, no revisar
+                Skipcond 800
+                Jump    PintarCabeza
+
+                JnS     CalcularDireccion   / Dir <- celda de la cabeza (Fila, Col)
+                Load    Dir
+                Subt    ComidaDir           / cabeza == comida ?
+                Skipcond 400
+                Jump    PintarCabeza        / no: seguir normal
+
+/ ---------- ESTO PASA CUANDO LA CABEZA COME EL PUNTO ----------
+                Load    Puntaje             / Puntaje = Puntaje + 1
+                Add     Uno
+                Store   Puntaje
+                Output                      / mostrar el nuevo puntaje
+                Clear                       / el punto ya no esta en el tablero
+                Store   HayComida
+                / PENDIENTE: crecer una celda y poner un nuevo punto libre
+
+PintarCabeza,   JnS     DibujarCabeza
+                Jump    Turno               / siguiente turno
+
+
+/ =====================================================================
+/  5. FIN DE LA PARTIDA
+/  Aqui llega el programa cuando la cabeza choca con una pared.
+/  Se guarda el estado, se imprime el codigo de fin (9999) y despues
+/  el puntaje final. Luego el programa se detiene.
+/ =====================================================================
+ChocoPared,     Load    Uno                 / Estado = 1 (perdio por pared)
+                Store   Estado
+                Load    CodigoFin           / 9999 = "la partida termino"
+                Output
+                Load    Puntaje             / puntaje final
+                Output
+                Halt
+
+
+/ =====================================================================
+/  6. SUBRUTINAS
+/  Se llaman con  JnS Nombre  y regresan con  JumpI Nombre.
+/  (JnS guarda la direccion de regreso en la primera palabra
+/   de la subrutina.)
+/ =====================================================================
+
+/ ---------- 6.1 CALCULAR DIRECCION DE UNA CELDA ----------
+/ Entrada: Fila y Col.   Salida: Dir = F00 + 16*Fila + Col
+/ Como MARIE no multiplica, se suma 16 tantas veces como indica Fila.
+CalcularDireccion,  HEX     0
+                    Load    PrimerPixel     / Dir = F00
+                    Store   Dir
+                    Load    Fila            / Contador = Fila
+                    Store   Contador
+SumarFila,          Load    Contador        / mientras Contador > 0
+                    Skipcond 800
+                    Jump    SumarColumna
+                    Load    Dir             /   Dir = Dir + 16
+                    Add     Dieciseis
+                    Store   Dir
+                    Load    Contador        /   Contador = Contador - 1
+                    Subt    Uno
+                    Store   Contador
+                    Jump    SumarFila
+SumarColumna,       Load    Dir             / Dir = Dir + Col
+                    Add     Col
+                    Store   Dir
+                    JumpI   CalcularDireccion
+
+/ ---------- 6.2 DIBUJAR LA CABEZA (color de la serpiente) ----------
+DibujarCabeza,      HEX     0
+                    JnS     CalcularDireccion
+                    Load    ColorSerpiente
+                    StoreI  Dir             / M[Dir] <- color de la serpiente
+                    JumpI   DibujarCabeza
+
+/ ---------- 6.3 BORRAR LA CABEZA (vuelve al color de fondo) ----------
+BorrarCabeza,       HEX     0
+                    JnS     CalcularDireccion
+                    Load    ColorFondo
+                    StoreI  Dir             / M[Dir] <- color de fondo
+                    JumpI   BorrarCabeza
+
+/ ---------- 6.4 DIBUJAR LA COMIDA (color del punto) ----------
+DibujarComida,      HEX     0
+                    Load    ColorComida
+                    StoreI  ComidaDir       / M[ComidaDir] <- color de la comida
+                    JumpI   DibujarComida
+
+/ ---------- 6.5 LIMPIAR EL TABLERO (las 256 celdas en color de fondo) ----------
+LimpiarTablero,     HEX     0
+                    Load    PrimerPixel     / Ptr = F00
+                    Store   Ptr
+                    Load    TotalCeldas     / Contador = 256
+                    Store   Contador
+LimpiarCelda,       Load    ColorFondo
+                    StoreI  Ptr             / M[Ptr] <- color de fondo
+                    Load    Ptr             / Ptr = Ptr + 1
+                    Add     Uno
+                    Store   Ptr
+                    Load    Contador        / Contador = Contador - 1
+                    Subt    Uno
+                    Store   Contador
+                    Skipcond 400            / si llego a 0 ya se pintaron todas
+                    Jump    LimpiarCelda
+                    JumpI   LimpiarTablero
+
+
+/ =====================================================================
+/  7. AQUI ESTAN LAS VARIABLES DEL JUEGO
+/ =====================================================================
+Fila,           DEC 8       / fila de la cabeza (0..15). Inicia en la fila 8
+Col,            DEC 4       / columna de la cabeza (0..15). Inicia en la columna 4
+Direccion,      DEC 4       / direccion actual: 1 arriba, 2 abajo, 3 izq, 4 der
+                            / la serpiente empieza mirando a la DERECHA
+Puntaje,        DEC 0       / puntaje del jugador
+Estado,         DEC 0       / 0 = jugando, 1 = choco con pared
+                            / (despues: 2 = choco con su cuerpo, 3 = tablero lleno)
+ComidaDir,      HEX F8A     / celda del punto: fila 8, columna 10 (F00 + 128 + 10)
+HayComida,      DEC 1       / 1 = hay un punto en el tablero, 0 = ya se comio
+Entrada,        DEC 0       / ultimo numero leido con INPUT
+
+
+/ =====================================================================
+/  8. ESTOS SON LOS COLORES
+/  Cada celda del display guarda un color en formato RGB 5-5-5:
+/  bits 14-10 = rojo, bits 9-5 = verde, bits 4-0 = azul.
+/ =====================================================================
+ColorFondo,     HEX 0000    / negro  -> fondo del tablero
+ColorSerpiente, HEX 03E0    / verde  -> serpiente
+ColorComida,    HEX 7C00    / rojo   -> punto (comida)
+
+
+/ =====================================================================
+/  9. VARIABLES DE APOYO (auxiliares)
+/ =====================================================================
+Dir,            HEX 0       / direccion de memoria calculada por CalcularDireccion
+Ptr,            HEX 0       / puntero que recorre el display al limpiarlo
+Contador,       DEC 0       / contador para los bucles
+
+
+/ =====================================================================
+/  10. CONSTANTES
+/ =====================================================================
+Uno,            DEC 1
+Dos,            DEC 2
+Tres,           DEC 3
+Cuatro,         DEC 4
+Quince,         DEC 15      / ultima fila / ultima columna
+Dieciseis,      DEC 16      / celdas por fila
+TotalCeldas,    DEC 256     / 16 x 16
+PrimerPixel,    HEX F00     / primera celda del display (fila 0, columna 0)
+CodigoFin,      DEC 9999    / numero que se imprime cuando termina la partida

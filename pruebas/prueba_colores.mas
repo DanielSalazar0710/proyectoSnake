@@ -1,0 +1,72 @@
+/ =====================================================================
+/  PRUEBA DE DISPLAY Y COLORES
+/  Pinta tres franjas para revisar que los colores se distinguen:
+/    fila 0  -> color de fondo   (negro)
+/    fila 1  -> color serpiente  (verde)
+/    fila 2  -> color comida     (rojo)
+/  y pinta las cuatro esquinas en blanco para comprobar que
+/  F00 = esquina superior izquierda y FFF = esquina inferior derecha.
+/ =====================================================================
+
+/ ---------- fila 0: fondo ----------
+            Load    Fila0
+            Store   Ptr
+            Load    ColorFondo
+            Store   Color
+            JnS     PintarFila
+
+/ ---------- fila 1: serpiente ----------
+            Load    Fila1
+            Store   Ptr
+            Load    ColorSerpiente
+            Store   Color
+            JnS     PintarFila
+
+/ ---------- fila 2: comida ----------
+            Load    Fila2
+            Store   Ptr
+            Load    ColorComida
+            Store   Color
+            JnS     PintarFila
+
+/ ---------- las cuatro esquinas en blanco ----------
+            Load    Blanco
+            StoreI  EsqSupIzq
+            StoreI  EsqSupDer
+            StoreI  EsqInfIzq
+            StoreI  EsqInfDer
+            Halt
+
+/ ---------- subrutina: pinta 16 celdas seguidas desde Ptr ----------
+PintarFila, HEX     0
+            Load    Dieciseis
+            Store   Contador
+Celda,      Load    Color
+            StoreI  Ptr
+            Load    Ptr
+            Add     Uno
+            Store   Ptr
+            Load    Contador
+            Subt    Uno
+            Store   Contador
+            Skipcond 400
+            Jump    Celda
+            JumpI   PintarFila
+
+/ ---------- datos ----------
+Ptr,            HEX 0
+Color,          HEX 0
+Contador,       DEC 0
+Uno,            DEC 1
+Dieciseis,      DEC 16
+Fila0,          HEX F00
+Fila1,          HEX F10
+Fila2,          HEX F20
+EsqSupIzq,      HEX F00
+EsqSupDer,      HEX F0F
+EsqInfIzq,      HEX FF0
+EsqInfDer,      HEX FFF
+ColorFondo,     HEX 0000
+ColorSerpiente, HEX 03E0
+ColorComida,    HEX 7C00
+Blanco,         HEX 7FFF
