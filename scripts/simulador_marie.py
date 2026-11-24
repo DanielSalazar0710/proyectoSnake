@@ -3,8 +3,11 @@
 Simulador sencillo de MARIE para probar los programas .mas sin abrir el navegador.
 
 Uso:
-    python3 scripts/simulador_marie.py src/snake.mas 4 4 4 4 4 4
-    python3 scripts/simulador_marie.py src/snake.mas --archivo pruebas/entradas/derecha.txt
+    python3 scripts/simulador_marie.py src/snake.mas D D D D D D
+    python3 scripts/simulador_marie.py src/snake.mas --archivo pruebas/entradas/02_comer_punto.txt
+
+Cada entrada puede ser un numero (como el Input en modo DECIMAL) o una
+sola letra (como el Input en modo UNICODE: se usa su codigo ASCII, W = 87).
 
 Ensambla el programa (dos pasadas, como MARIE.js), lo ejecuta con las entradas
 dadas y muestra las salidas (OUTPUT) y el display 16x16 en texto:
@@ -78,6 +81,13 @@ def con_signo(v):
     return v - 0x10000 if v & 0x8000 else v
 
 
+def valor_entrada(texto):
+    # una letra sola se toma como en el modo UNICODE de MARIE.js (codigo ASCII)
+    if len(texto) == 1 and not texto.isdigit():
+        return ord(texto)
+    return int(texto)
+
+
 def ejecutar(mem, entradas, max_pasos=2_000_000):
     ac, pc, salidas = 0, 0, []
     entradas = list(entradas)
@@ -93,7 +103,7 @@ def ejecutar(mem, entradas, max_pasos=2_000_000):
         elif op == 0x5:
             if not entradas:
                 return salidas, "esperando INPUT (se acabaron las entradas)"
-            ac = int(entradas.pop(0)) & 0xFFFF
+            ac = valor_entrada(entradas.pop(0)) & 0xFFFF
         elif op == 0x6: salidas.append(con_signo(ac))
         elif op == 0x7: return salidas, "HALT"
         elif op == 0x8:
