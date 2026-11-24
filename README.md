@@ -12,20 +12,22 @@ Implementación del juego Snake (el clásico de Nokia) en lenguaje ensamblador d
 
 ## 1. Objetivo
 
-Construir una versión jugable de Snake **por turnos**: en cada turno el jugador escribe una dirección con `INPUT`, la serpiente avanza una celda y el display se actualiza. La serpiente come puntos, crece una celda y suma 1 al puntaje por cada punto. La partida termina si la cabeza choca contra una pared o contra su propio cuerpo, o si el tablero se llena.
+Construir una versión jugable de Snake **por turnos**: en cada turno el jugador escribe una tecla (W, A, S o D) con `INPUT`, la serpiente avanza una celda y el display se actualiza. La serpiente come puntos, crece una celda y suma 1 al puntaje por cada punto. La partida termina si la cabeza choca contra una pared o contra su propio cuerpo, o si el tablero se llena.
 
 ## 2. Convenciones del juego
 
-### 2.1 Direcciones (entrada con `INPUT`, modo decimal)
+### 2.1 Direcciones (entrada con `INPUT`, modo Unicode)
 
-| Entrada | Dirección | Cambio en la posición |
-| --- | --- | --- |
-| 1 | Arriba | fila − 1 |
-| 2 | Abajo | fila + 1 |
-| 3 | Izquierda | columna − 1 |
-| 4 | Derecha | columna + 1 |
+| Tecla | Código ASCII | Dirección | Cambio en la posición |
+| --- | --- | --- | --- |
+| W / w | 87 / 119 | Arriba | fila − 1 |
+| S / s | 83 / 115 | Abajo | fila + 1 |
+| A / a | 65 / 97 | Izquierda | columna − 1 |
+| D / d | 68 / 100 | Derecha | columna + 1 |
 
-Cualquier otro número se rechaza y se vuelve a pedir **sin mover** la serpiente. Cuando la serpiente tenga más de una celda, también se rechazará el giro de 180° (por ejemplo, pedir izquierda cuando se va a la derecha).
+En MARIE.js el **Input** debe estar en formato **Unicode (UTF-16BE)**: así cada letra llega al `AC` como su código ASCII. Se aceptan mayúsculas y minúsculas: si el código es 97 o más (minúscula) se le resta 32 y queda la mayúscula. Internamente la dirección actual se guarda como 1 = arriba, 2 = abajo, 3 = izquierda, 4 = derecha.
+
+Cualquier otra tecla se rechaza y se vuelve a pedir **sin mover** la serpiente. Cuando la serpiente tenga más de una celda, también se rechazará el giro de 180° (por ejemplo, pedir izquierda cuando se va a la derecha).
 
 ### 2.2 Colores
 
@@ -42,7 +44,7 @@ El display de MARIE.js lee la memoria `0xF00`–`0xFFF` y cada palabra es un col
 - 16 filas × 16 columnas. La fila 0 es la de arriba y la columna 0 la de la izquierda.
 - La celda `(fila, columna)` está en la dirección de memoria **`F00 + 16·fila + columna`**.
 - Posición inicial: cabeza en **fila 8, columna 4**, mirando a la **derecha** (dirección 4).
-- Primer punto: **fila 8, columna 10** (`0xF8A`).
+- Primer punto: **fila 8, columna 10** (`0xF8A`). Los siguientes aparecen en otra celda libre (ver 3.4).
 
 ### 2.4 Salidas con `OUTPUT`
 
@@ -75,9 +77,9 @@ Cuando un índice llega a 256 vuelve a 0 (por eso es circular). Así no hay que 
 | Variable | Qué guarda |
 | --- | --- |
 | `Fila`, `Col` | Fila y columna de la cabeza (0–15). Se usan para detectar paredes. |
-| `Direccion` | Dirección actual (1–4). Se usa para rechazar el giro de 180°. |
+| `Direccion` | Dirección actual (1 arriba, 2 abajo, 3 izquierda, 4 derecha). Se usa para rechazar el giro de 180°. |
 | `ComidaDir` | Dirección de memoria del punto actual. |
-| `TablaComida` | Secuencia fija de posiciones para los puntos. Si la siguiente está ocupada, se busca la siguiente celda libre. |
+| `Azar` | Número de 0 a 255 que cambia con cada tecla. Decide la celda del siguiente punto. |
 | `Puntaje` | Puntos obtenidos. |
 | `Estado` | 0 = jugando, 1 = chocó con pared, 2 = chocó con su cuerpo, 3 = tablero completo. |
 
@@ -87,12 +89,18 @@ Cuando un índice llega a 256 vuelve a 0 (por eso es circular). Así no hay que 
 - **Cuerpo:** el display mismo sirve como mapa: si la celda a la que entra la cabeza ya tiene el color de la serpiente, es choque. Para que entrar en la celda que la cola acaba de liberar sea válido, primero se borra la cola (cuando no se come) y después se revisa la celda nueva.
 - **Tablero completo:** si `Largo` llega a 256 no queda celda libre para el punto.
 
+### 3.4 Nuevo punto "aleatorio"
+
+MARIE no tiene números aleatorios, así que usamos un número `Azar` (0–255) que avanza `PasoAzar = 37` cada vez que el jugador escribe una tecla (válida o no). Si pasa de 255 se le resta 256. Como depende de cuántas teclas se escribieron, el punto aparece en lugares distintos según cómo juegue cada persona.
+
+Al comer, el punto nuevo se pone en la celda `F00 + Azar`. Si esa celda no es negra (ahí está la serpiente), se avanza `Azar` y se prueba otra vez. Así el punto nunca cae sobre la serpiente.
+
 ## 4. Estructura del programa
 
 El programa se organiza en secciones y subrutinas cortas (`JnS` / `JumpI`):
 
 1. **Inicio:** limpiar tablero, dibujar serpiente y punto, mostrar puntaje 0.
-2. **Turno:** leer dirección y validarla (1–4, sin giro de 180°).
+2. **Turno:** leer la tecla y validarla (W, A, S, D, sin giro de 180°).
 3. **Movimiento:** calcular la nueva cabeza, revisar pared.
 4. **Comer / cola:** si hay punto, crecer y sumar puntaje; si no, mover la cola.
 5. **Choque con el cuerpo.**
@@ -114,9 +122,9 @@ EXPLICACION_CODIGO.md          explicación del código
 ## 6. Cómo ejecutar
 
 1. Abrir <https://marie.js.org/> y pegar el contenido de `src/snake.mas`.
-2. Abrir el panel **Display** y poner el **Input** y el **Output** en modo **Decimal**.
+2. Abrir el panel **Inputs** y poner el formato en **Unicode (UTF-16BE)**. El **Output** se deja en **Decimal**.
 3. Presionar **Assemble** y luego **Run**.
-4. En cada turno escribir 1, 2, 3 o 4.
+4. En cada turno escribir W, A, S o D (mayúscula o minúscula). En el panel **Inputs** también se pueden dejar varias teclas seguidas, por ejemplo `DDDDDD`: cada letra es un `INPUT`.
 
 Para repetir las pruebas sin abrir el navegador:
 
@@ -130,9 +138,9 @@ El simulador solo ejecuta el programa MARIE y dibuja el display en texto; no con
 
 | Etapa | Contenido | Estado |
 | --- | --- | --- |
-| 1 | Variables, colores, dibujo del tablero, movimiento de la cabeza en 4 direcciones, paredes, puntaje | Hecho (bosquejo) |
+| 1 | Variables, colores, dibujo del tablero, movimiento de la cabeza con W A S D, paredes, puntaje, nuevo punto al comer | Hecho (bosquejo) |
 | 2 | Cuerpo con buffer circular, movimiento de la cola | Pendiente |
-| 3 | Crecimiento al comer, nuevo punto en celda libre (tabla fija) | Pendiente |
+| 3 | Crecimiento al comer | Pendiente |
 | 4 | Choque con el cuerpo, giro de 180°, tablero completo | Pendiente |
 | 5 | Pruebas mínimas con capturas del display | Pendiente |
 | 6 | Short paper IEEE (Overleaf) y póster | Pendiente |
