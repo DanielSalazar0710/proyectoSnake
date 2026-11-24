@@ -1,0 +1,6 @@
+# Prueba 5: comer dos veces seguidas
+# primer punto en (8, 10): 6 pasos a la derecha (6 teclas -> Azar = 222)
+# el punto nuevo queda en F00 + 222 = FDE -> fila 13, columna 14
+# desde (8, 10): 5 abajo y 4 a la derecha
+D D D D D D
+S S S S S D D D D

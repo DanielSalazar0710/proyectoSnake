@@ -1,28 +1,31 @@
 / =====================================================================
-/  SNAKE EN MARIE  -  BOSQUEJO INICIAL (version 0.1)
+/  SNAKE EN MARIE  -  BOSQUEJO (version 0.2)
 /  Organizacion de Computadores
 / ---------------------------------------------------------------------
 /  Que hace esta version:
 /    - Pinta el tablero de 16x16 con el color de fondo.
 /    - Pinta la cabeza de la serpiente y un punto (comida).
 /    - Muestra el puntaje inicial (0) con OUTPUT.
-/    - En cada turno lee una direccion con INPUT (1,2,3,4) y mueve
-/      la cabeza una celda. Si la entrada no es valida, vuelve a pedir.
+/    - En cada turno lee una tecla con INPUT (W, A, S o D) y mueve
+/      la cabeza una celda. Si la tecla no es valida, vuelve a pedir.
 /    - Si la cabeza intenta salir del tablero, la partida termina.
-/    - Si la cabeza llega al punto, el puntaje sube en 1.
+/    - Si la cabeza llega al punto, el puntaje sube en 1 y aparece
+/      un punto nuevo en otra celda libre ("aleatoria", ver seccion 6.6).
 /
 /  Todavia NO hace (ver AVANCE.md):
 /    - Cuerpo de la serpiente (por ahora solo existe la cabeza).
-/    - Crecimiento, nuevo punto despues de comer, choque con el cuerpo
-/      y rechazo del giro de 180 grados.
+/    - Crecimiento, choque con el cuerpo y rechazo del giro de 180 grados.
 /
 /  Como usarlo en MARIE.js:
-/    1. Abrir el display (Display) y poner el Input en modo DECIMAL.
+/    1. Abrir el display (Display) y poner el Input en modo UNICODE
+/       (asi cada letra llega como su codigo ASCII). Output en DECIMAL.
 /    2. Assemble y Run.
-/    3. Escribir 1, 2, 3 o 4 en cada turno.
+/    3. Escribir W, A, S o D en cada turno (mayuscula o minuscula).
 /
-/  Convencion de direcciones:  1 = arriba   2 = abajo
-/                              3 = izquierda 4 = derecha
+/  Teclas:   W = arriba      S = abajo
+/            A = izquierda   D = derecha
+/  Codigos ASCII:  W = 87  A = 65  S = 83  D = 68
+/                  w = 119 a = 97  s = 115 d = 100  (minuscula = mayuscula + 32)
 /
 /  El display de MARIE.js lee la memoria 0xF00 - 0xFFF:
 /  la celda (fila, columna) esta en la direccion  F00 + 16*fila + columna
@@ -42,35 +45,50 @@ Inicio,     JnS     LimpiarTablero      / pinta las 256 celdas con el color de f
 
 
 / =====================================================================
-/  2. TURNO: LEER Y VALIDAR LA DIRECCION
-/  Aqui se pide la direccion al jugador.
-/  Solo se aceptan 1, 2, 3 o 4. Cualquier otro numero se ignora
+/  2. TURNO: LEER Y VALIDAR LA TECLA
+/  Aqui se pide la tecla al jugador (Input en modo UNICODE).
+/  Solo se aceptan W, A, S o D. Cualquier otra tecla se ignora
 /  y se vuelve a pedir, SIN mover la serpiente.
 / =====================================================================
-Turno,      Input                       / AC <- numero que escribe el jugador
+Turno,      Input                       / AC <- codigo ASCII de la tecla
+            Store   Entrada
+            JnS     AvanzarAzar         / cada tecla cambia el numero "al azar"
+
+/ ---------- 2.1 ESTO PASA LAS MINUSCULAS A MAYUSCULAS ----------
+/ En ASCII la minuscula es la mayuscula + 32 (a = 97, A = 65).
+/ Si Entrada >= 97 es minuscula y se le resta 32.
+            Load    Entrada
+            Subt    MinusculaA          / Entrada - 97
+            Skipcond 000                / si es negativo ya es mayuscula: no cambiar
+            Jump    AMayuscula
+            Jump    CompararTecla
+AMayuscula, Load    Entrada             / Entrada = Entrada - 32
+            Subt    TreintaYDos
             Store   Entrada
 
-            Subt    Uno                 / es 1?  (Entrada - 1 == 0)
+/ ---------- 2.2 ESTO DECIDE QUE TECLA ES ----------
+CompararTecla, Load Entrada             / es W?  (Entrada - 87 == 0)
+            Subt    TeclaW
             Skipcond 400
-            Jump    NoEsUno
+            Jump    NoEsW
             Jump    MoverArriba
 
-NoEsUno,    Load    Entrada             / es 2?
-            Subt    Dos
+NoEsW,      Load    Entrada             / es S?
+            Subt    TeclaS
             Skipcond 400
-            Jump    NoEsDos
+            Jump    NoEsS
             Jump    MoverAbajo
 
-NoEsDos,    Load    Entrada             / es 3?
-            Subt    Tres
+NoEsS,      Load    Entrada             / es A?
+            Subt    TeclaA
             Skipcond 400
-            Jump    NoEsTres
+            Jump    NoEsA
             Jump    MoverIzquierda
 
-NoEsTres,   Load    Entrada             / es 4?
-            Subt    Cuatro
+NoEsA,      Load    Entrada             / es D?
+            Subt    TeclaD
             Skipcond 400
-            Jump    Turno               / no es ninguna: entrada invalida, pedir otra
+            Jump    Turno               / no es ninguna: tecla invalida, pedir otra
             Jump    MoverDerecha
 
 
@@ -138,29 +156,23 @@ SiDerecha,      Load    Cuatro          / la direccion actual pasa a ser 4
 
 / =====================================================================
 /  4. DESPUES DE MOVER
-/  Aqui se revisa si la cabeza cayo sobre el punto y luego se pinta
-/  la cabeza en su nueva celda.
+/  Aqui se pinta la cabeza en su nueva celda y se revisa si cayo
+/  sobre el punto. La cabeza se pinta PRIMERO para que el punto
+/  nuevo nunca pueda aparecer encima de ella.
 / =====================================================================
-DespuesDeMover, Load    HayComida       / si ya no hay punto en el tablero, no revisar
-                Skipcond 800
-                Jump    PintarCabeza
-
-                JnS     CalcularDireccion   / Dir <- celda de la cabeza (Fila, Col)
+DespuesDeMover, JnS     DibujarCabeza       / pinta la cabeza (y deja Dir = su celda)
                 Load    Dir
                 Subt    ComidaDir           / cabeza == comida ?
                 Skipcond 400
-                Jump    PintarCabeza        / no: seguir normal
+                Jump    Turno               / no: siguiente turno
 
 / ---------- ESTO PASA CUANDO LA CABEZA COME EL PUNTO ----------
                 Load    Puntaje             / Puntaje = Puntaje + 1
                 Add     Uno
                 Store   Puntaje
                 Output                      / mostrar el nuevo puntaje
-                Clear                       / el punto ya no esta en el tablero
-                Store   HayComida
-                / PENDIENTE: crecer una celda y poner un nuevo punto libre
-
-PintarCabeza,   JnS     DibujarCabeza
+                JnS     NuevaComida         / poner un punto nuevo en otra celda
+                / PENDIENTE: crecer una celda
                 Jump    Turno               / siguiente turno
 
 
@@ -247,20 +259,53 @@ LimpiarCelda,       Load    ColorFondo
                     Jump    LimpiarCelda
                     JumpI   LimpiarTablero
 
+/ ---------- 6.6 NUEVA COMIDA (el punto aparece en otra celda) ----------
+/ MARIE no tiene numeros aleatorios. Usamos la variable Azar (0..255),
+/ que cambia con cada tecla que se escribe (ver AvanzarAzar). Como
+/ depende de cuantas teclas se escribieron, el lugar parece al azar.
+/ La celda candidata es  F00 + Azar. Si esa celda NO esta en negro
+/ (ahi esta la serpiente), se avanza Azar y se prueba otra vez.
+NuevaComida,        HEX     0
+ProbarCelda,        Load    PrimerPixel     / ComidaDir = F00 + Azar
+                    Add     Azar
+                    Store   ComidaDir
+                    LoadI   ComidaDir       / AC <- color que hay en esa celda
+                    Subt    ColorFondo      / esta libre? (color == fondo)
+                    Skipcond 400
+                    Jump    CeldaOcupada
+                    JnS     DibujarComida   / libre: pintar el punto ahi
+                    JumpI   NuevaComida
+CeldaOcupada,       JnS     AvanzarAzar     / ocupada: probar otra celda
+                    Jump    ProbarCelda
+
+/ ---------- 6.7 AVANZAR AZAR ----------
+/ Azar = (Azar + PasoAzar) y si pasa de 255 se le resta 256,
+/ asi siempre queda entre 0 y 255 (una de las 256 celdas).
+AvanzarAzar,        HEX     0
+                    Load    Azar            / Azar = Azar + PasoAzar
+                    Add     PasoAzar
+                    Store   Azar
+                    Subt    TotalCeldas     / AC = Azar - 256
+                    Skipcond 000            / si es negativo, Azar ya esta bien
+                    Store   Azar            / si no, Azar = Azar - 256
+                    JumpI   AvanzarAzar
+
 
 / =====================================================================
 /  7. AQUI ESTAN LAS VARIABLES DEL JUEGO
 / =====================================================================
 Fila,           DEC 8       / fila de la cabeza (0..15). Inicia en la fila 8
 Col,            DEC 4       / columna de la cabeza (0..15). Inicia en la columna 4
-Direccion,      DEC 4       / direccion actual: 1 arriba, 2 abajo, 3 izq, 4 der
+Direccion,      DEC 4       / direccion actual: 1 arriba (W), 2 abajo (S),
+                            / 3 izquierda (A), 4 derecha (D)
                             / la serpiente empieza mirando a la DERECHA
 Puntaje,        DEC 0       / puntaje del jugador
 Estado,         DEC 0       / 0 = jugando, 1 = choco con pared
                             / (despues: 2 = choco con su cuerpo, 3 = tablero lleno)
-ComidaDir,      HEX F8A     / celda del punto: fila 8, columna 10 (F00 + 128 + 10)
-HayComida,      DEC 1       / 1 = hay un punto en el tablero, 0 = ya se comio
-Entrada,        DEC 0       / ultimo numero leido con INPUT
+ComidaDir,      HEX F8A     / celda del punto. El primero esta en fila 8, columna 10
+                            / (F00 + 128 + 10). Los siguientes los pone NuevaComida
+Azar,           DEC 0       / numero "al azar" (0..255) para el siguiente punto
+Entrada,        DEC 0       / codigo ASCII de la ultima tecla leida con INPUT
 
 
 / =====================================================================
@@ -292,4 +337,12 @@ Quince,         DEC 15      / ultima fila / ultima columna
 Dieciseis,      DEC 16      / celdas por fila
 TotalCeldas,    DEC 256     / 16 x 16
 PrimerPixel,    HEX F00     / primera celda del display (fila 0, columna 0)
+PasoAzar,       DEC 37      / cuanto avanza Azar con cada tecla (impar, para
+                            / que recorra las 256 celdas antes de repetirse)
+TeclaW,         DEC 87      / 'W' en ASCII -> arriba
+TeclaA,         DEC 65      / 'A' en ASCII -> izquierda
+TeclaS,         DEC 83      / 'S' en ASCII -> abajo
+TeclaD,         DEC 68      / 'D' en ASCII -> derecha
+MinusculaA,     DEC 97      / 'a' en ASCII: desde aqui son minusculas
+TreintaYDos,    DEC 32      / distancia entre minuscula y mayuscula
 CodigoFin,      DEC 9999    / numero que se imprime cuando termina la partida
